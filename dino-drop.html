@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dino Gummies</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a0a;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #fff;
+      user-select: none;
+    }
+
+    #brand-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      pointer-events: none;
+      padding: 14px 24px 10px;
+    }
+
+    #title {
+      font-family: 'Bungee', Impact, 'Arial Black', sans-serif;
+      font-size: clamp(1.4rem, 5vw, 2.4rem);
+      font-weight: 400;
+      text-align: center;
+      color: #7FFF00;
+      letter-spacing: 0.12em;
+      text-shadow:
+        0 0 6px #7FFF00,
+        0 0 14px #7FFF00,
+        0 0 28px #4B0082,
+        0 0 48px #4B0082,
+        0 0 64px #4B0082;
+    }
+
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    #score {
+      color: #7FFF00;
+      text-shadow:
+        0 0 6px #7FFF00,
+        0 0 12px #7FFF00,
+        0 0 20px #4B0082;
+    }
+
+    #lives {
+      color: #FF1493;
+      text-shadow:
+        0 0 6px #FF1493,
+        0 0 12px #FF1493,
+        0 0 20px #4B0082;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    #game-over {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 10, 10, 0.9);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.35s ease, visibility 0.35s ease;
+      overflow-y: auto;
+    }
+
+    #game-over.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .game-over-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      padding: 24px;
+      text-align: center;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    #score-entry {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+    }
+
+    #score-entry-label {
+      font-size: clamp(0.95rem, 3vw, 1.1rem);
+      font-weight: 800;
+      color: #FF1493;
+      letter-spacing: 0.05em;
+      text-shadow:
+        0 0 6px #FF1493,
+        0 0 14px #4B0082;
+    }
+
+    #player-name {
+      width: 100%;
+      max-width: 280px;
+      padding: 12px 16px;
+      border: 2px solid #7FFF00;
+      border-radius: 4px;
+      background: #0a0a0a;
+      color: #7FFF00;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+      user-select: text;
+      box-shadow:
+        0 0 8px rgba(127, 255, 0, 0.4),
+        0 0 18px rgba(75, 0, 130, 0.5),
+        inset 0 0 8px rgba(127, 255, 0, 0.08);
+    }
+
+    #player-name::placeholder {
+      color: rgba(127, 255, 0, 0.45);
+    }
+
+    #player-name:focus {
+      border-color: #FF1493;
+      box-shadow:
+        0 0 10px rgba(255, 20, 147, 0.5),
+        0 0 22px rgba(75, 0, 130, 0.6),
+        inset 0 0 8px rgba(255, 20, 147, 0.08);
+    }
+
+    #submit-score {
+      padding: 14px 32px;
+      border: none;
+      border-radius: 4px;
+      background: #7FFF00;
+      color: #000;
+      font-family: 'Bungee', Impact, 'Arial Black', sans-serif;
+      font-size: clamp(0.85rem, 3vw, 1.1rem);
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      box-shadow:
+        0 0 10px #FF1493,
+        0 0 22px #FF1493,
+        0 0 40px #4B0082;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    #submit-score:hover {
+      transform: scale(1.05);
+      box-shadow:
+        0 0 14px #FF1493,
+        0 0 28px #FF1493,
+        0 0 50px #4B0082;
+    }
+
+    #submit-score:active {
+      transform: scale(0.98);
+    }
+
+    #game-over-title {
+      font-family: 'Bungee', Impact, 'Arial Black', sans-serif;
+      font-size: clamp(2.8rem, 14vw, 5.5rem);
+      font-weight: 400;
+      color: #7FFF00;
+      letter-spacing: 0.1em;
+      line-height: 1.1;
+      text-shadow:
+        0 0 8px #7FFF00,
+        0 0 18px #7FFF00,
+        0 0 36px #7FFF00,
+        0 0 56px #4B0082,
+        0 0 80px #4B0082;
+    }
+
+    #final-score {
+      font-size: clamp(1.3rem, 4.5vw, 2rem);
+      font-weight: 800;
+      color: #FF1493;
+      letter-spacing: 0.06em;
+      text-shadow:
+        0 0 8px #FF1493,
+        0 0 16px #FF1493,
+        0 0 28px #4B0082;
+    }
+
+    #play-again {
+      margin-top: 8px;
+      padding: 16px 40px;
+      border: none;
+      border-radius: 4px;
+      background: #7FFF00;
+      color: #000;
+      font-family: 'Bungee', Impact, 'Arial Black', sans-serif;
+      font-size: clamp(1rem, 3.5vw, 1.35rem);
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      box-shadow:
+        0 0 10px #FF1493,
+        0 0 22px #FF1493,
+        0 0 40px #4B0082;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    #play-again:hover {
+      transform: scale(1.05);
+      box-shadow:
+        0 0 14px #FF1493,
+        0 0 28px #FF1493,
+        0 0 50px #4B0082;
+    }
+
+    #play-again:active {
+      transform: scale(0.98);
+    }
+
+    #leaderboard {
+      width: 100%;
+      margin-top: 4px;
+      padding: 16px;
+      border-radius: 6px;
+      background: rgba(10, 10, 10, 0.85);
+      border: 1px solid rgba(127, 255, 0, 0.25);
+      box-shadow:
+        0 0 12px rgba(75, 0, 130, 0.4),
+        inset 0 0 20px rgba(75, 0, 130, 0.15);
+    }
+
+    #leaderboard-title {
+      font-family: 'Bungee', Impact, 'Arial Black', sans-serif;
+      font-size: clamp(0.95rem, 3vw, 1.15rem);
+      color: #7FFF00;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+      text-shadow:
+        0 0 6px #7FFF00,
+        0 0 14px #4B0082;
+    }
+
+    .leaderboard-header,
+    .leaderboard-row {
+      display: grid;
+      grid-template-columns: 2.5rem 1fr 4.5rem;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 4px;
+      text-align: left;
+    }
+
+    .leaderboard-header {
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #FF1493;
+      border-bottom: 1px solid rgba(255, 20, 147, 0.35);
+      text-shadow: 0 0 8px rgba(255, 20, 147, 0.5);
+    }
+
+    .leaderboard-row {
+      font-size: 0.9rem;
+      font-weight: 700;
+      border-bottom: 1px solid rgba(127, 255, 0, 0.12);
+    }
+
+    .leaderboard-row:last-child {
+      border-bottom: none;
+    }
+
+    .leaderboard-rank {
+      color: #7FFF00;
+      text-shadow: 0 0 6px rgba(127, 255, 0, 0.6);
+    }
+
+    .leaderboard-name {
+      color: #7FFF00;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-shadow: 0 0 8px rgba(75, 0, 130, 0.8);
+    }
+
+    .leaderboard-score {
+      color: #FF1493;
+      text-align: right;
+      text-shadow:
+        0 0 6px #FF1493,
+        0 0 12px #4B0082;
+    }
+
+    #leaderboard-empty {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: rgba(255, 20, 147, 0.75);
+      padding: 8px 0;
+      text-shadow: 0 0 10px rgba(75, 0, 130, 0.6);
+    }
+  </style>
+</head>
+<body>
+  <header id="brand-header">
+    <h1 id="title">DINO GUMMIES</h1>
+    <div id="hud">
+      <span id="score">Score: 0</span>
+      <span id="lives">Lives: 3</span>
+    </div>
+  </header>
+  <canvas id="game"></canvas>
+
+  <div id="game-over">
+    <div class="game-over-content">
+      <h2 id="game-over-title">GAME OVER</h2>
+      <div id="score-entry">
+        <label id="score-entry-label" for="player-name">Enter your name</label>
+        <input id="player-name" type="text" maxlength="16" placeholder="Your name" autocomplete="off">
+        <button id="submit-score" type="button">SUBMIT SCORE</button>
+      </div>
+      <p id="final-score" class="hidden">Final Score: 0</p>
+      <button id="play-again" type="button">PLAY AGAIN</button>
+      <div id="leaderboard" class="hidden">
+        <h3 id="leaderboard-title">TOP SCORES</h3>
+        <div id="leaderboard-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const livesEl = document.getElementById('lives');
+    const gameOverOverlay = document.getElementById('game-over');
+    const finalScoreEl = document.getElementById('final-score');
+    const playAgainBtn = document.getElementById('play-again');
+    const scoreEntrySection = document.getElementById('score-entry');
+    const playerNameInput = document.getElementById('player-name');
+    const submitScoreBtn = document.getElementById('submit-score');
+    const leaderboardEl = document.getElementById('leaderboard');
+    const leaderboardBody = document.getElementById('leaderboard-body');
+
+    const LEADERBOARD_KEY = 'dinoGummiesLeaderboard';
+    const LEADERBOARD_LIMIT = 10;
+
+    const DINO_EMOJIS = ['🦖', '🦕', '🦎'];
+    const JAR_EMOJI = '🫙';
+    const FONT_SIZE = 48;
+    const JAR_FONT_SIZE = 68;
+    const JAR_Y_OFFSET = 24;
+    const JAR_SPEED = 6;
+    const JAR_SMOOTHING = 0.18;
+    const BASE_FALL_SPEED = 2.2;
+    const SPEED_PER_SCORE = 0.12;
+    const SPAWN_INTERVAL = 1400;
+    const BG_COLOR = '#0a0a0a';
+    const SPARKLE_COUNT = 70;
+
+    let width = 0;
+    let height = 0;
+    let score = 0;
+    let lives = 3;
+    let jarX = 0;
+    let jarVelocity = 0;
+    let keys = { left: false, right: false };
+    let touch = { left: false, right: false };
+    let dinos = [];
+    let sparkles = [];
+    let lastSpawn = 0;
+    let lastTime = 0;
+    let gameOver = false;
+
+    let audioCtx = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      return audioCtx;
+    }
+
+    function ensureAudio() {
+      const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      return ctx;
+    }
+
+    function playCatchSound() {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(480, t);
+      osc.frequency.exponentialRampToValueAtTime(1100, t + 0.05);
+      osc.frequency.exponentialRampToValueAtTime(320, t + 0.16);
+
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.38, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.22);
+    }
+
+    function playMissSound() {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      const thud = ctx.createOscillator();
+      const buzz = ctx.createOscillator();
+      const thudGain = ctx.createGain();
+      const buzzGain = ctx.createGain();
+
+      thud.type = 'sine';
+      thud.frequency.setValueAtTime(120, t);
+      thud.frequency.exponentialRampToValueAtTime(45, t + 0.22);
+
+      buzz.type = 'square';
+      buzz.frequency.setValueAtTime(85, t);
+      buzz.frequency.exponentialRampToValueAtTime(60, t + 0.15);
+
+      thudGain.gain.setValueAtTime(0.0001, t);
+      thudGain.gain.exponentialRampToValueAtTime(0.42, t + 0.01);
+      thudGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+
+      buzzGain.gain.setValueAtTime(0.0001, t);
+      buzzGain.gain.exponentialRampToValueAtTime(0.1, t + 0.01);
+      buzzGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+
+      thud.connect(thudGain);
+      buzz.connect(buzzGain);
+      thudGain.connect(ctx.destination);
+      buzzGain.connect(ctx.destination);
+      thud.start(t);
+      buzz.start(t);
+      thud.stop(t + 0.3);
+      buzz.stop(t + 0.2);
+    }
+
+    function playGameOverSound() {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      const wahFreqs = [420, 310, 220, 140];
+
+      wahFreqs.forEach((freq, i) => {
+        const start = t + i * 0.32;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq * 1.35, start);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.65, start + 0.28);
+
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(0.22, start + 0.04);
+        gain.gain.linearRampToValueAtTime(0.16, start + 0.2);
+        gain.gain.linearRampToValueAtTime(0.0001, start + 0.32);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.34);
+      });
+    }
+
+    function playStartJingle() {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+
+      notes.forEach((freq, i) => {
+        const start = t + i * 0.11;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.28, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.2);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.22);
+      });
+    }
+
+    function initAudioOnInteraction() {
+      const unlock = () => {
+        ensureAudio();
+      };
+      window.addEventListener('keydown', unlock, { once: true });
+      canvas.addEventListener('touchstart', unlock, { once: true });
+      playAgainBtn.addEventListener('click', unlock, { once: true });
+    }
+
+    function initSparkles() {
+      sparkles = [];
+      for (let i = 0; i < SPARKLE_COUNT; i++) {
+        sparkles.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: Math.random() * 1.8 + 0.8,
+          phase: Math.random() * Math.PI * 2,
+          speed: Math.random() * 0.004 + 0.002
+        });
+      }
+    }
+
+    function drawSparkles(timestamp) {
+      for (const sparkle of sparkles) {
+        const twinkle = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(timestamp * sparkle.speed + sparkle.phase));
+        ctx.save();
+        ctx.shadowColor = '#4B0082';
+        ctx.shadowBlur = 6 * twinkle;
+        ctx.fillStyle = `rgba(255, 20, 147, ${twinkle * 0.55})`;
+        ctx.beginPath();
+        ctx.arc(sparkle.x, sparkle.y, sparkle.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+      jarX = Math.max(0, Math.min(jarX, width - jarWidth()));
+      initSparkles();
+    }
+
+    function getFallSpeed() {
+      return BASE_FALL_SPEED + score * SPEED_PER_SCORE;
+    }
+
+    function spawnDino() {
+      const emoji = DINO_EMOJIS[Math.floor(Math.random() * DINO_EMOJIS.length)];
+      const x = Math.random() * (width - FONT_SIZE);
+      dinos.push({
+        emoji,
+        x,
+        y: -FONT_SIZE,
+        size: FONT_SIZE
+      });
+    }
+
+    function jarY() {
+      return height - JAR_FONT_SIZE - JAR_Y_OFFSET;
+    }
+
+    function jarWidth() {
+      return measureEmoji(JAR_EMOJI, JAR_FONT_SIZE);
+    }
+
+    function measureEmoji(emoji, size) {
+      ctx.font = `${size}px serif`;
+      return ctx.measureText(emoji).width;
+    }
+
+    function drawEmoji(emoji, x, y, size) {
+      ctx.font = `${size}px serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText(emoji, x, y);
+    }
+
+    function getJarBounds() {
+      const y = jarY();
+      const w = jarWidth();
+      return {
+        left: jarX,
+        right: jarX + w,
+        top: y,
+        bottom: y + JAR_FONT_SIZE,
+        centerX: jarX + w / 2
+      };
+    }
+
+    function getDinoBounds(dino) {
+      const w = measureEmoji(dino.emoji, dino.size);
+      return {
+        left: dino.x,
+        right: dino.x + w,
+        top: dino.y,
+        bottom: dino.y + dino.size,
+        centerX: dino.x + w / 2
+      };
+    }
+
+    function overlaps(a, b) {
+      return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    }
+
+    function updateHUD() {
+      scoreEl.textContent = `Score: ${score}`;
+      livesEl.textContent = `Lives: ${Math.max(0, lives)}`;
+    }
+
+    function getLeaderboard() {
+      try {
+        const data = JSON.parse(localStorage.getItem(LEADERBOARD_KEY));
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveLeaderboard(entries) {
+      localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
+    }
+
+    function addScoreToLeaderboard(name, playerScore) {
+      const entries = getLeaderboard();
+      entries.push({
+        name,
+        score: playerScore,
+        date: Date.now()
+      });
+      entries.sort((a, b) => b.score - a.score || a.date - b.date);
+      saveLeaderboard(entries.slice(0, LEADERBOARD_LIMIT));
+    }
+
+    function renderLeaderboard() {
+      const entries = getLeaderboard();
+      leaderboardBody.innerHTML = '';
+
+      if (entries.length === 0) {
+        const empty = document.createElement('p');
+        empty.id = 'leaderboard-empty';
+        empty.textContent = 'No scores yet — be the first!';
+        leaderboardBody.appendChild(empty);
+        return;
+      }
+
+      const header = document.createElement('div');
+      header.className = 'leaderboard-header';
+      header.innerHTML = '<span>#</span><span>Name</span><span>Score</span>';
+      leaderboardBody.appendChild(header);
+
+      entries.forEach((entry, index) => {
+        const row = document.createElement('div');
+        row.className = 'leaderboard-row';
+        row.innerHTML = `
+          <span class="leaderboard-rank">${index + 1}</span>
+          <span class="leaderboard-name">${escapeHtml(entry.name)}</span>
+          <span class="leaderboard-score">${entry.score}</span>
+        `;
+        leaderboardBody.appendChild(row);
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function submitScore() {
+      const name = playerNameInput.value.trim() || 'Player';
+      addScoreToLeaderboard(name, score);
+      scoreEntrySection.classList.add('hidden');
+      finalScoreEl.textContent = `Final Score: ${score}`;
+      finalScoreEl.classList.remove('hidden');
+      renderLeaderboard();
+      leaderboardEl.classList.remove('hidden');
+    }
+
+    function showGameOverScreen() {
+      scoreEntrySection.classList.remove('hidden');
+      finalScoreEl.classList.add('hidden');
+      leaderboardEl.classList.add('hidden');
+      playerNameInput.value = '';
+    }
+
+    function endGame() {
+      if (gameOver) return;
+      gameOver = true;
+      keys.left = false;
+      keys.right = false;
+      clearTouch();
+      showGameOverScreen();
+      gameOverOverlay.classList.add('visible');
+      playGameOverSound();
+      playerNameInput.focus();
+    }
+
+    function resetGame() {
+      score = 0;
+      lives = 3;
+      jarVelocity = 0;
+      dinos = [];
+      keys.left = false;
+      keys.right = false;
+      clearTouch();
+      lastSpawn = 0;
+      lastTime = 0;
+      gameOver = false;
+      gameOverOverlay.classList.remove('visible');
+      jarX = width / 2 - jarWidth() / 2;
+      updateHUD();
+      playStartJingle();
+    }
+
+    function updateJarMovement(dt) {
+      const wantLeft = keys.left || touch.left;
+      const wantRight = keys.right || touch.right;
+
+      let targetVelocity = 0;
+      if (wantLeft && !wantRight) targetVelocity = -JAR_SPEED;
+      else if (wantRight && !wantLeft) targetVelocity = JAR_SPEED;
+
+      const dtScale = dt / 16.67;
+      const smooth = 1 - Math.pow(1 - JAR_SMOOTHING, dtScale);
+      jarVelocity += (targetVelocity - jarVelocity) * smooth;
+      jarX += jarVelocity * dtScale;
+      jarX = Math.max(0, Math.min(jarX, width - jarWidth()));
+
+      if (jarX <= 0 || jarX >= width - jarWidth()) {
+        jarVelocity = 0;
+      }
+    }
+
+    function setTouchDirection(clientX) {
+      touch.left = clientX < width / 2;
+      touch.right = clientX >= width / 2;
+    }
+
+    function clearTouch() {
+      touch.left = false;
+      touch.right = false;
+    }
+
+    function update(dt, timestamp) {
+      if (gameOver) return;
+
+      updateJarMovement(dt);
+
+      if (timestamp - lastSpawn >= SPAWN_INTERVAL) {
+        spawnDino();
+        lastSpawn = timestamp;
+      }
+
+      const fallSpeed = getFallSpeed();
+      const jarBounds = getJarBounds();
+      const remaining = [];
+
+      for (const dino of dinos) {
+        dino.y += fallSpeed * (dt / 16.67);
+        const bounds = getDinoBounds(dino);
+
+        if (overlaps(bounds, jarBounds)) {
+          score += 1;
+          updateHUD();
+          playCatchSound();
+          continue;
+        }
+
+        if (dino.y > height) {
+          if (!gameOver) {
+            lives -= 1;
+            updateHUD();
+            playMissSound();
+            if (lives <= 0) {
+              endGame();
+            }
+          }
+          continue;
+        }
+
+        remaining.push(dino);
+      }
+
+      dinos = remaining;
+    }
+
+    function draw(timestamp) {
+      ctx.fillStyle = BG_COLOR;
+      ctx.fillRect(0, 0, width, height);
+
+      drawSparkles(timestamp);
+
+      ctx.save();
+      ctx.shadowColor = '#4B0082';
+      ctx.shadowBlur = 18;
+      drawEmoji(JAR_EMOJI, jarX, jarY(), JAR_FONT_SIZE);
+      ctx.restore();
+
+      ctx.save();
+      ctx.shadowColor = '#FF1493';
+      ctx.shadowBlur = 8;
+      for (const dino of dinos) {
+        drawEmoji(dino.emoji, dino.x, dino.y, dino.size);
+      }
+      ctx.restore();
+    }
+
+    function loop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      if (!lastSpawn) lastSpawn = timestamp;
+      const dt = timestamp - lastTime;
+      lastTime = timestamp;
+
+      update(dt, timestamp);
+      draw(timestamp);
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') {
+        keys.left = true;
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight') {
+        keys.right = true;
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft') keys.left = false;
+      if (e.key === 'ArrowRight') keys.right = false;
+    });
+
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      setTouchDirection(e.touches[0].clientX);
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      setTouchDirection(e.touches[0].clientX);
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) {
+        clearTouch();
+      } else {
+        setTouchDirection(e.touches[0].clientX);
+      }
+    });
+
+    canvas.addEventListener('touchcancel', clearTouch);
+
+    playAgainBtn.addEventListener('click', resetGame);
+    submitScoreBtn.addEventListener('click', submitScore);
+    playerNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        submitScore();
+      }
+    });
+
+    window.addEventListener('resize', resize);
+
+    resize();
+    jarX = width / 2 - jarWidth() / 2;
+    updateHUD();
+    initAudioOnInteraction();
+    playStartJingle();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
