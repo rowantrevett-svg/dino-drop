@@ -323,7 +323,8 @@
         0 0 12px #4B0082;
     }
 
-    #leaderboard-empty {
+    #leaderboard-empty,
+    #leaderboard-loading {
       font-size: 0.9rem;
       font-weight: 700;
       color: rgba(255, 20, 147, 0.75);
@@ -373,9 +374,12 @@
     const leaderboardEl = document.getElementById('leaderboard');
     const leaderboardBody = document.getElementById('leaderboard-body');
 
-    const LEADERBOARD_KEY = 'dinoGummiesLeaderboard';
+    const JSONBIN_API_KEY = '$2a$10$ThMakw4DvucMQ7rW1jyggO2JR.M6SpcAojgHa0KDF8r.i6F6JvwfS';
+    const JSONBIN_BIN_ID_HARDCODED = '';
+    const JSONBIN_BIN_ID_KEY = 'dinoGummiesJsonBinId';
     const LEADERBOARD_LIMIT = 10;
 
+    let jsonBinId = JSONBIN_BIN_ID_HARDCODED || localStorage.getItem(JSONBIN_BIN_ID_KEY) || '';
     let leaderboardEntries = [];
 
     const DINO_EMOJIS = ['🦖', '🦕', '🦎'];
@@ -638,48 +642,121 @@
       livesEl.textContent = `Lives: ${Math.max(0, lives)}`;
     }
 
-    function loadLeaderboard() {
-      try {
-        const raw = localStorage.getItem(LEADERBOARD_KEY);
-        if (raw === null || raw === '') {
-          leaderboardEntries = [];
-          return;
-        }
-        const data = JSON.parse(raw);
-        leaderboardEntries = Array.isArray(data) ? data : [];
-      } catch (error) {
-        console.error('Failed to load leaderboard:', error);
-        leaderboardEntries = [];
+    function jsonBinHeaders() {
+      return {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_API_KEY
+      };
+    }
+
+    function sortAndTrimLeaderboard(entries) {
+      return entries.slice().sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.date || 0) - (b.date || 0);
+      }).slice(0, LEADERBOARD_LIMIT);
+    }
+
+    function parseLeaderboardRecord(record) {
+      if (Array.isArray(record)) return record;
+      if (record && Array.isArray(record.entries)) return record.entries;
+      return [];
+    }
+
+    async function ensureJsonBin() {
+      if (jsonBinId) return jsonBinId;
+
+      const response = await fetch('https://api.jsonbin.io/v3/b', {
+        method: 'POST',
+        headers: {
+          ...jsonBinHeaders(),
+          'X-Bin-Name': 'Dino Gummies Leaderboard'
+        },
+        body: JSON.stringify({ entries: [] })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to create JSONBin');
       }
+
+      const data = await response.json();
+      jsonBinId = data.metadata.id;
+      localStorage.setItem(JSONBIN_BIN_ID_KEY, jsonBinId);
+      console.log('Created leaderboard bin:', jsonBinId);
+      return jsonBinId;
+    }
+
+    async function fetchLeaderboardFromBin() {
+      const binId = await ensureJsonBin();
+      const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+        headers: { 'X-Master-Key': JSONBIN_API_KEY }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch leaderboard');
+      }
+
+      const data = await response.json();
+      return parseLeaderboardRecord(data.record);
+    }
+
+    async function saveLeaderboardToBin(entries) {
+      const binId = await ensureJsonBin();
+      leaderboardEntries = sortAndTrimLeaderboard(entries);
+
+      const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+        method: 'PUT',
+        headers: jsonBinHeaders(),
+        body: JSON.stringify({ entries: leaderboardEntries })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save leaderboard');
+      }
+
+      console.log('Leaderboard saved:', leaderboardEntries);
+      return leaderboardEntries;
     }
 
     function getLeaderboard() {
       return leaderboardEntries.slice();
     }
 
-    function saveLeaderboard(entries) {
-      const sorted = entries.slice().sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        return (a.date || 0) - (b.date || 0);
-      });
-      leaderboardEntries = sorted.slice(0, LEADERBOARD_LIMIT);
-
-      try {
-        localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(leaderboardEntries));
-        console.log('Leaderboard saved:', leaderboardEntries);
-      } catch (error) {
-        console.error('Failed to save leaderboard:', error);
-      }
-    }
-
-    function addScoreToLeaderboard(name, playerScore) {
-      const entries = getLeaderboard();
+    async function addScoreToLeaderboard(name, playerScore) {
+      const entries = await fetchLeaderboardFromBin();
       entries.push({
         name,
         score: playerScore,
         date: Date.now()
       });
-      saveLeaderboard(entries);
+      return saveLeaderboardToBin(entries);
+    }
+
+    function showLeaderboardLoading() {
+      leaderboardBody.innerHTML = '';
+      const loading = document.createElement('p');
+      loading.id = 'leaderboard-loading';
+      loading.textContent = 'Loading leaderboard...';
+      leaderboardBody.appendChild(loading);
+    }
+
+    function showLeaderboardError(message) {
+      leaderboardBody.innerHTML = '';
+      const error = document.createElement('p');
+      error.id = 'leaderboard-empty';
+      error.textContent = message;
+      leaderboardBody.appendChild(error);
+    }
+
+    async function loadGlobalLeaderboard() {
+      showLeaderboardLoading();
+      try {
+        leaderboardEntries = await fetchLeaderboardFromBin();
+        renderLeaderboard();
+      } catch (error) {
+        console.error('Failed to load leaderboard:', error);
+        showLeaderboardError('Could not load leaderboard.');
+      }
     }
 
     function renderLeaderboard() {
@@ -717,21 +794,31 @@
       return div.innerHTML;
     }
 
-    function submitScore() {
+    async function submitScore() {
       const name = playerNameInput.value.trim() || 'Player';
-      addScoreToLeaderboard(name, score);
-      scoreEntrySection.classList.add('hidden');
-      finalScoreEl.textContent = `Final Score: ${score}`;
-      finalScoreEl.classList.remove('hidden');
-      renderLeaderboard();
-      leaderboardEl.classList.remove('hidden');
+      submitScoreBtn.disabled = true;
+      showLeaderboardLoading();
+
+      try {
+        await addScoreToLeaderboard(name, score);
+        scoreEntrySection.classList.add('hidden');
+        finalScoreEl.textContent = `Final Score: ${score}`;
+        finalScoreEl.classList.remove('hidden');
+        renderLeaderboard();
+      } catch (error) {
+        console.error('Failed to submit score:', error);
+        showLeaderboardError('Could not save score. Try again.');
+      } finally {
+        submitScoreBtn.disabled = false;
+      }
     }
 
     function showGameOverScreen() {
       scoreEntrySection.classList.remove('hidden');
       finalScoreEl.classList.add('hidden');
-      leaderboardEl.classList.add('hidden');
+      leaderboardEl.classList.remove('hidden');
       playerNameInput.value = '';
+      loadGlobalLeaderboard();
     }
 
     function endGame() {
@@ -915,8 +1002,6 @@
     resize();
     jarX = width / 2 - jarWidth() / 2;
     updateHUD();
-    loadLeaderboard();
-    console.log('Leaderboard loaded:', leaderboardEntries);
     initAudioOnInteraction();
     playStartJingle();
     requestAnimationFrame(loop);
