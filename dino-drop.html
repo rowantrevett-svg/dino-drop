@@ -376,6 +376,8 @@
     const LEADERBOARD_KEY = 'dinoGummiesLeaderboard';
     const LEADERBOARD_LIMIT = 10;
 
+    let leaderboardEntries = [];
+
     const DINO_EMOJIS = ['🦖', '🦕', '🦎'];
     const JAR_EMOJI = '🫙';
     const FONT_SIZE = 48;
@@ -636,17 +638,38 @@
       livesEl.textContent = `Lives: ${Math.max(0, lives)}`;
     }
 
-    function getLeaderboard() {
+    function loadLeaderboard() {
       try {
-        const data = JSON.parse(localStorage.getItem(LEADERBOARD_KEY));
-        return Array.isArray(data) ? data : [];
-      } catch {
-        return [];
+        const raw = localStorage.getItem(LEADERBOARD_KEY);
+        if (raw === null || raw === '') {
+          leaderboardEntries = [];
+          return;
+        }
+        const data = JSON.parse(raw);
+        leaderboardEntries = Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error('Failed to load leaderboard:', error);
+        leaderboardEntries = [];
       }
     }
 
+    function getLeaderboard() {
+      return leaderboardEntries.slice();
+    }
+
     function saveLeaderboard(entries) {
-      localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
+      const sorted = entries.slice().sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.date || 0) - (b.date || 0);
+      });
+      leaderboardEntries = sorted.slice(0, LEADERBOARD_LIMIT);
+
+      try {
+        localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(leaderboardEntries));
+        console.log('Leaderboard saved:', leaderboardEntries);
+      } catch (error) {
+        console.error('Failed to save leaderboard:', error);
+      }
     }
 
     function addScoreToLeaderboard(name, playerScore) {
@@ -656,8 +679,7 @@
         score: playerScore,
         date: Date.now()
       });
-      entries.sort((a, b) => b.score - a.score || a.date - b.date);
-      saveLeaderboard(entries.slice(0, LEADERBOARD_LIMIT));
+      saveLeaderboard(entries);
     }
 
     function renderLeaderboard() {
@@ -893,6 +915,8 @@
     resize();
     jarX = width / 2 - jarWidth() / 2;
     updateHUD();
+    loadLeaderboard();
+    console.log('Leaderboard loaded:', leaderboardEntries);
     initAudioOnInteraction();
     playStartJingle();
     requestAnimationFrame(loop);
