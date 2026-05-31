@@ -382,6 +382,44 @@
     let jsonBinId = JSONBIN_BIN_ID_HARDCODED || localStorage.getItem(JSONBIN_BIN_ID_KEY) || '';
     let leaderboardEntries = [];
 
+    function getStoredBinId() {
+      return JSONBIN_BIN_ID_HARDCODED || jsonBinId || localStorage.getItem(JSONBIN_BIN_ID_KEY) || '';
+    }
+
+    function setStoredBinId(id) {
+      jsonBinId = id;
+      if (!JSONBIN_BIN_ID_HARDCODED) {
+        localStorage.setItem(JSONBIN_BIN_ID_KEY, id);
+      }
+    }
+
+    function clearStoredBinId() {
+      jsonBinId = '';
+      if (!JSONBIN_BIN_ID_HARDCODED) {
+        localStorage.removeItem(JSONBIN_BIN_ID_KEY);
+      }
+    }
+
+    async function logJsonBinError(response, context) {
+      let body = null;
+      try {
+        body = await response.clone().json();
+      } catch {
+        try {
+          body = await response.clone().text();
+        } catch {
+          body = null;
+        }
+      }
+      console.log(`JSONBin ${context} error:`, {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        body
+      });
+      return body;
+    }
+
     const DINO_EMOJIS = ['🦖', '🦕', '🦎'];
     const JAR_EMOJI = '🫙';
     const FONT_SIZE = 48;
@@ -662,38 +700,46 @@
       return [];
     }
 
-    async function ensureJsonBin() {
-      if (jsonBinId) return jsonBinId;
-
+    async function createLeaderboardBin(entries) {
+      const sorted = sortAndTrimLeaderboard(entries);
       const response = await fetch('https://api.jsonbin.io/v3/b', {
         method: 'POST',
         headers: {
           ...jsonBinHeaders(),
           'X-Bin-Name': 'Dino Gummies Leaderboard'
         },
-        body: JSON.stringify({ entries: [] })
+        body: JSON.stringify(sorted)
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to create JSONBin');
+        const errorBody = await logJsonBinError(response, 'create');
+        throw new Error(errorBody?.message || 'Failed to create JSONBin');
       }
 
       const data = await response.json();
-      jsonBinId = data.metadata.id;
-      localStorage.setItem(JSONBIN_BIN_ID_KEY, jsonBinId);
-      console.log('Created leaderboard bin:', jsonBinId);
-      return jsonBinId;
+      setStoredBinId(data.metadata.id);
+      leaderboardEntries = sorted;
+      console.log('Created leaderboard bin:', getStoredBinId(), sorted);
+      return getStoredBinId();
     }
 
     async function fetchLeaderboardFromBin() {
-      const binId = await ensureJsonBin();
+      const binId = getStoredBinId();
+      if (!binId) return [];
+
       const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
         headers: { 'X-Master-Key': JSONBIN_API_KEY }
       });
 
+      if (response.status === 404) {
+        await logJsonBinError(response, 'fetch');
+        clearStoredBinId();
+        return [];
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to fetch leaderboard');
+        const errorBody = await logJsonBinError(response, 'fetch');
+        throw new Error(errorBody?.message || 'Failed to fetch leaderboard');
       }
 
       const data = await response.json();
@@ -701,17 +747,33 @@
     }
 
     async function saveLeaderboardToBin(entries) {
-      const binId = await ensureJsonBin();
-      leaderboardEntries = sortAndTrimLeaderboard(entries);
+      const sorted = sortAndTrimLeaderboard(entries);
+      leaderboardEntries = sorted;
+      const binId = getStoredBinId();
+
+      if (!binId) {
+        await createLeaderboardBin(sorted);
+        console.log('Leaderboard saved:', leaderboardEntries);
+        return leaderboardEntries;
+      }
 
       const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
         method: 'PUT',
         headers: jsonBinHeaders(),
-        body: JSON.stringify({ entries: leaderboardEntries })
+        body: JSON.stringify(sorted)
       });
 
+      if (response.status === 404) {
+        await logJsonBinError(response, 'save');
+        clearStoredBinId();
+        await createLeaderboardBin(sorted);
+        console.log('Leaderboard saved:', leaderboardEntries);
+        return leaderboardEntries;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to save leaderboard');
+        const errorBody = await logJsonBinError(response, 'save');
+        throw new Error(errorBody?.message || 'Failed to save leaderboard');
       }
 
       console.log('Leaderboard saved:', leaderboardEntries);
@@ -723,7 +785,10 @@
     }
 
     async function addScoreToLeaderboard(name, playerScore) {
-      const entries = await fetchLeaderboardFromBin();
+      let entries = [];
+      if (getStoredBinId()) {
+        entries = await fetchLeaderboardFromBin();
+      }
       entries.push({
         name,
         score: playerScore,
